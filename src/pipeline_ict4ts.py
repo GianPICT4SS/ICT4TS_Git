@@ -222,7 +222,7 @@ def pip_uotF(start_timestamp, end_timestamp, city='Torino', objective='week'):
             {
                 '$group': {
 
-                    '_id': {'year': '$year', 'day': '$dd'},
+                    '_id': {'year': '$year', 'day': '$dd', 'hour': '$hh'},
                     'date': {'$first': '$init_date'},
                     'total': {'$sum': 1},
                 }

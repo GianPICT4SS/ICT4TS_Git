@@ -1,18 +1,25 @@
-from statsmodels.tsa.stattools import adfuller, acf, pacf
+from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from statsmodels.tsa.arima_model import ARIMA
 from statsmodels.tsa.seasonal import seasonal_decompose
 import pmdarima as pm
-import matplotlib.pyplot as plt
-import matplotlib.cbook as cbook
-import matplotlib.dates as mdates
-from datetime import datetime
-import logging
-import pandas as pd
+
+
 import seaborn as sns
-import numpy as np
 from scipy import stats
-from scipy.stats import normaltest
+import warnings
+import itertools
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+warnings.filterwarnings("ignore")
+plt.style.use('fivethirtyeight')
+import pandas as pd
+import statsmodels.api as sm
+import matplotlib
+matplotlib.rcParams['axes.labelsize'] = 14
+matplotlib.rcParams['xtick.labelsize'] = 12
+matplotlib.rcParams['ytick.labelsize'] = 12
+matplotlib.rcParams['text.color'] = 'G'
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
@@ -77,7 +84,7 @@ def get_series(data_ls, objective):
     try:
         df = df.set_index('date')
         df = df.set_index(pd.to_datetime(df.index))
-        df = df.resample('D').mean()
+        df = df.resample('H').mean()
         df.dropna(inplace=True)
         ts = df[objective]
         return ts
@@ -87,8 +94,13 @@ def get_series(data_ls, objective):
         pass
 
 
+def plot_acf_pacf(ts, lags=10):
 
-
+    fig = plt.figure(figsize=(10, 10))
+    ax1 = fig.add_subplot(211)
+    fig = plot_acf(ts, ax=ax1, lags=lags)
+    ax2 = fig.add_subplot(212)
+    fig = plot_pacf(ts, ax=ax2, lags=lags)
 
 
 def heatmap(X, columns, name):
@@ -115,16 +127,16 @@ def heatmap(X, columns, name):
         plt.savefig('../plots/' + fname)
         pass
 
-def get_d(ts):
+def get_d(ts, lags=10):
     # ACF and PACF analysis
     # find the number of differencing d
     fig = plt.figure(figsize=(10, 10))
     ax1 = fig.add_subplot(311)
-    fig = plot_acf(ts, ax=ax1, lags=50, title='ACF for the original data')
+    fig = plot_acf(ts, ax=ax1, lags=lags, title='ACF for the original data')
     ax2 = fig.add_subplot(312)
-    fig = plot_acf(ts.diff().dropna(), ax=ax2, lags=50, title='First difference')
+    fig = plot_acf(ts.diff().dropna(), ax=ax2, lags=lags, title='First difference')
     ax3 = fig.add_subplot(313)
-    fig = plot_acf(ts.diff().diff().dropna(), ax=ax3, lags=50, title='Second difference')
+    fig = plot_acf(ts.diff().diff().dropna(), ax=ax3, lags=lags, title='Second difference')
 
 def arimamodel(timeseries):
 
@@ -151,49 +163,42 @@ def test_residual(results_ts, model='MA'):
     # ACF and PACF
     fig = plt.figure(figsize=(12, 8))
     ax1 = fig.add_subplot(211)
-    fig = plot_acf(results_ts.resid, lags=40, ax=ax1, title=f'ACF of {model}')
+    fig = plot_acf(results_ts.resid, lags=15, ax=ax1, title=f'ACF of {model}')
     ax2 = fig.add_subplot(212)
-    fig = plot_pacf(results_ts.resid, lags=40, ax=ax2, title=f'PACF of {model}')
+    fig = plot_pacf(results_ts.resid, lags=15, ax=ax2, title=f'PACF of {model}')
+
+def autosarima(ts, order=3):
+
+    p = d = q = range(0, order)
+    pdq = list(itertools.product(p, d, q))
+    seasonal_pdq = [(x[0], x[1], x[2], 12) for x in list(itertools.product(p, d, q))]
+
+    dic_aic = {}
+    print('SARIMA tunning starts:')
+    for param in pdq:
+        for param_seasonal in seasonal_pdq:
+            try:
+                mod = sm.tsa.statespace.SARIMAX(ts,
+                                                order=param,
+                                                seasonal_order=param_seasonal,
+                                                enforce_stationarity=False,
+                                                enforce_invertibility=False)
+                results = mod.fit()
+                dic_aic[param, param_seasonal] = results.aic
+
+                print('ARIMA{}x{} - AIC:{}'.format(param,
+                                                     param_seasonal,
+                                                     results.aic))
+            except:
+                continue
+
+    return dic_aic
 
 
 
-if __name__ == "__main__":
-
-    df = pd.read_csv('uotB_year.csv')
-    df = df.drop(['Unnamed: 0', '_id'], axis=1)
-    df = df.set_index('date')
-    ts = df['total']
-    ts_1d = ts.diff().dropna()
-    ts_2d = ts_1d.diff().dropna()
-    ts_3s = ts_2d.diff().dropna()
-    #seasonal(ts)
 
 
-    # ACF
-   # get_d(ts)  # d = 1
-   # test_stationarity(ts, model='Original')
-   # test_stationarity(ts_1d, model='First_difference')
 
-   # plot_acf(ts_1d, lags=60)
-   # plot_pacf(ts_1d, lags=60)
-
-
-    model_ma2 = ARIMA(ts, order=(0, 1, 2))
-    model_arima = ARIMA(ts, order=(1, 1, 2))
-    model_arima_712 = ARIMA(ts, order=(2, 1, 2))
-    results_ma2 = model_ma2.fit()
-    results_arima = model_arima.fit()
-    results_arima_712 = model_arima_712.fit()
-    results_ma2.plot_predict(210, 365)
-    results_arima.plot_predict(210, 365)
-    results_arima_712.plot_predict(210, 365)
-
-    automodel = arimamodel(ts)
-
-    #test_residual(results_ma1, model='ARIMA_011')
-    #test_residual(results_arima, model='ARIMA_112')
-    #test_residual(results_arima_211, model='ARIMA_212')
-   # test_residual(automodel, model='SARIMAX_100')
 
 
 
