@@ -2,6 +2,8 @@ from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.seasonal import seasonal_decompose
 import pmdarima as pm
+import statsmodels.api as sm
+from statsmodels.tsa.arima_model import ARIMA
 
 
 import seaborn as sns
@@ -14,7 +16,7 @@ import matplotlib.dates as mdates
 warnings.filterwarnings("ignore")
 plt.style.use('fivethirtyeight')
 import pandas as pd
-import statsmodels.api as sm
+
 import matplotlib
 matplotlib.rcParams['axes.labelsize'] = 14
 matplotlib.rcParams['xtick.labelsize'] = 12
@@ -182,7 +184,8 @@ def autosarima(ts, order=3):
                                                 order=param,
                                                 seasonal_order=param_seasonal,
                                                 enforce_stationarity=False,
-                                                enforce_invertibility=False)
+                                                enforce_invertibility=False,
+                                                disp=False)
                 results = mod.fit()
                 dic_aic[param, param_seasonal] = results.aic
 
@@ -190,10 +193,35 @@ def autosarima(ts, order=3):
                                                      param_seasonal,
                                                      results.aic))
             except:
+                print(f'Except: {param} and {param_seasonal}')
                 continue
 
     return dic_aic
 
+
+def autoarima(ts, order=3):
+
+    p = d = q = range(0, order)
+    pdq = list(itertools.product(p, d, q))
+    dic_aic = {}
+    print('ARIMA tunning starts:')
+    for param in pdq:
+        try:
+            mod = ARIMA(ts,
+                    order=param)
+            results = mod.fit()
+            dic_aic[param] = results.aic
+            print('############################################')
+            print('ARIMA{} - AIC:{}'.format(param, results.aic))
+            print('############################################')
+        except:
+            print(f'Except: {param}')
+            continue
+
+
+
+
+    return dic_aic, pdq
 
 
 
